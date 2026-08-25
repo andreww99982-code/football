@@ -129,6 +129,22 @@ object MatchAnalyst {
 
         val risks = buildRisks(input, quality)
 
+        val recommendation = buildRecommendation(
+            input = input,
+            home = home,
+            draw = draw,
+            away = away,
+            lambdaHome = lambdaHome,
+            lambdaAway = lambdaAway,
+            homeMatches = homeMatches.size,
+            awayMatches = awayMatches.size,
+            homeAttack = homeAttack,
+            homeDefence = homeDefence,
+            awayAttack = awayAttack,
+            awayDefence = awayDefence,
+            standingAdjustment = standingAdjustment
+        )
+
         val finishedAt = elapsedMillisProvider()
 
         return AnalystResult.Ready(
@@ -149,7 +165,8 @@ object MatchAnalyst {
                 dataQuality = quality,
                 computedAtMillis = nowMillis,
                 computationMillis = (finishedAt - startedAt).coerceAtLeast(0L),
-                methodology = METHODOLOGY
+                methodology = METHODOLOGY,
+                recommendation = recommendation
             )
         )
     }
@@ -311,5 +328,104 @@ object MatchAnalyst {
             risks += "Команды близки по форме — распределение исходов слабо разделимо."
         }
         return risks
+    }
+
+    /**
+     * Builds a human-readable recommendation identifying the most likely outcome and
+     * explaining the key factors behind it.
+     */
+    private fun buildRecommendation(
+        input: AnalystInput,
+        home: Double,
+        draw: Double,
+        away: Double,
+        lambdaHome: Double,
+        lambdaAway: Double,
+        homeMatches: Int,
+        awayMatches: Int,
+        homeAttack: Double,
+        homeDefence: Double,
+        awayAttack: Double,
+        awayDefence: Double,
+        standingAdjustment: Double
+    ): BettingRecommendation {
+        val homeName = input.homeSample.team.name
+        val awayName = input.awaySample.team.name
+
+        // Find the dominant outcome
+        val outcomes = listOf(
+            Triple(home, "Победа $homeName", "home"),
+            Triple(draw, "Ничья", "draw"),
+            Triple(away, "Победа $awayName", "away")
+        )
+        val best = outcomes.maxByOrNull { it.first }!!
+        val label = best.second
+        val prob = best.first
+
+        // Qualitative confidence
+        val confidence = when {
+            prob >= 0.55 -> "Высокая"
+            prob >= 0.42 -> "Средняя"
+            else -> "Низкая"
+        }
+
+        // Build reasoning list
+        val reasoning = mutableListOf<String>()
+
+        when (best.third) {
+            "home" -> {
+                if (homeAttack > awayAttack + 0.15) {
+                    reasoning += "Атака $homeName сильнее (индекс ${PoissonCalculator.roundTo(homeAttack, 2)} vs ${PoissonCalculator.roundTo(awayAttack, 2)})."
+                }
+                if (homeDefence < awayDefence - 0.1) {
+                    reasoning += "Оборона $homeName надёжнее (индекс ${PoissonCalculator.roundTo(homeDefence, 2)} vs ${PoissonCalculator.roundTo(awayDefence, 2)})."
+                }
+                reasoning += "xG ${PoissonCalculator.roundTo(lambdaHome, 2)} vs ${PoissonCalculator.roundTo(lambdaAway, 2)} — модель предсказывает преимущество хозяев."
+                if (input.homeSample.matches.any { it.isHome }) {
+                    val homeFormStr = input.homeSample.matches.take(5)
+                        .joinToString("") { it.resultLetter }
+                    reasoning += "Домашняя форма $homeName: $homeFormStr."
+                }
+            }
+            "away" -> {
+                if (awayAttack > homeAttack + 0.15) {
+                    reasoning += "Атака $awayName сильнее (индекс ${PoissonCalculator.roundTo(awayAttack, 2)} vs ${PoissonCalculator.roundTo(homeAttack, 2)})."
+                }
+                if (awayDefence < homeDefence - 0.1) {
+                    reasoning += "Оборона $awayName надёжнее (индекс ${PoissonCalculator.roundTo(awayDefence, 2)} vs ${PoissonCalculator.roundTo(homeDefence, 2)})."
+                }
+                reasoning += "xG ${PoissonCalculator.roundTo(lambdaHome, 2)} vs ${PoissonCalculator.roundTo(lambdaAway, 2)} — модель предсказывает преимущество гостей."
+                if (input.awaySample.matches.any { !it.isHome }) {
+                    val awayFormStr = input.awaySample.matches.take(5)
+                        .joinToString("") { it.resultLetter }
+                    reasoning += "Форма $awayName в гостях: $awayFormStr."
+                }
+            }
+            else -> {
+                reasoning += "Команды близки по ожидаемым голам (xG ${PoissonCalculator.roundTo(lambdaHome, 2)} — ${PoissonCalculator.roundTo(lambdaAway, 2)})."
+                reasoning += "Ни одна из сторон не имеет существенного преимущества по модели."
+            }
+        }
+
+        if (standingAdjustment > 0.03) {
+            reasoning += "$homeName выше в таблице — поправка повышает их вероятность."
+        } else if (standingAdjustment < -0.03) {
+            reasoning += "$awayName выше в таблице — поправка снижает вероятность хозяев."
+        }
+
+        val homeInjuries = input.homeSample.confirmedInjuries
+        val awayInjuries = input.awaySample.confirmedInjuries
+        if (homeInjuries > 0 || awayInjuries > 0) {
+            reasoning += "Травмы: $homeName — $homeInjuries, $awayName — $awayInjuries игроков."
+        }
+
+        reasoning += "Итого: исход «$label» — ${PoissonCalculator.roundTo(prob * 100, 1)}% по модели Пуассона."
+
+        return BettingRecommendation(
+            outcomeLabel = label,
+            probability = prob,
+            confidence = confidence,
+            reasoning = reasoning
+        )
     }
 }

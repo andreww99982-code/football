@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -18,7 +21,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,9 +37,11 @@ import com.rmatch.football.ui.components.EmptyState
 import com.rmatch.football.ui.components.ErrorState
 import com.rmatch.football.ui.components.FilterChipRow
 import com.rmatch.football.ui.components.LoadingState
+import com.rmatch.football.ui.components.RMatchLogo
 import com.rmatch.football.ui.components.ResponsibleGamblingNote
 import com.rmatch.football.ui.components.SectionTitle
 import com.rmatch.football.ui.theme.RMatchMuted
+import com.rmatch.football.ui.theme.RMatchOnDark
 import com.rmatch.football.ui.theme.RMatchSurface
 import com.rmatch.football.ui.theme.RMatchSurfaceVariant
 
@@ -50,7 +57,18 @@ fun AnalyticsScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("R-Match Analyst") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RMatchLogo(size = 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "R-Match Analyst",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = RMatchOnDark,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = RMatchSurface),
             actions = {
                 IconButton(onClick = { viewModel.refresh(forceRefresh = true) }) {

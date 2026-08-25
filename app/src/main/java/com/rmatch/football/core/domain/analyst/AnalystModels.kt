@@ -65,6 +65,21 @@ data class DataQuality(
     val notes: List<String>
 )
 
+/**
+ * Actionable recommendation for this fixture based on the statistical model.
+ * Neutral in wording — describes probabilities and factors, not certainties.
+ */
+data class BettingRecommendation(
+    /** Human-readable outcome label, e.g. "Победа хозяев" */
+    val outcomeLabel: String,
+    /** Outcome probability from the model (0.0–1.0) */
+    val probability: Double,
+    /** Qualitative confidence tier */
+    val confidence: String,
+    /** Bullet-point reasoning list */
+    val reasoning: List<String>
+)
+
 data class AnalystReport(
     val fixtureId: Int,
     val outcome: OutcomeProbabilities,
@@ -82,7 +97,8 @@ data class AnalystReport(
     val dataQuality: DataQuality,
     val computedAtMillis: Long,
     val computationMillis: Long,
-    val methodology: String
+    val methodology: String,
+    val recommendation: BettingRecommendation? = null
 )
 
 sealed interface AnalystResult {
