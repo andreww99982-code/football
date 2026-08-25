@@ -18,4 +18,10 @@ interface TheSportsDbApi {
         @Query("d") date: String,
         @Query("s") sport: String = "Soccer"
     ): Response<TheSportsDbEventsEnvelope>
+
+    /** Look up a single event by its TheSportsDB event ID. */
+    @GET("lookupevent.php")
+    suspend fun eventById(
+        @Query("id") id: Long
+    ): Response<TheSportsDbEventsEnvelope>
 }

@@ -247,14 +247,25 @@ class FootballRepository(
             api.fixtures(mapOf("team" to teamId.toString(), "next" to next.toString()))
         }.map { it.toFixtures() }
 
-    suspend fun fixture(fixtureId: Int, forceRefresh: Boolean = false): DataResult<Fixture?> =
-        load(
+    suspend fun fixture(fixtureId: Int, forceRefresh: Boolean = false): DataResult<Fixture?> {
+        val paid = load(
             cacheKey = "fixture:$fixtureId",
             ttlMillis = CacheTtl.LIVE_MILLIS,
             serializer = ListSerializer(FixtureDto.serializer()),
             forceRefresh = forceRefresh
         ) { api.fixtures(mapOf("id" to fixtureId.toString())) }
             .map { it.toFixtures().firstOrNull() }
+
+        val needsFallback = paid is DataResult.Failure &&
+            (paid.error is AppError.NoApiKey ||
+                paid.error is AppError.RateLimited ||
+                paid.error is AppError.Unauthorized)
+        if (needsFallback && freeDataSource != null) {
+            val free = freeDataSource.fixtureById(fixtureId)
+            if (free is DataResult.Success && free.loaded.value != null) return free
+        }
+        return paid
+    }
 
     suspend fun events(fixtureId: Int, forceRefresh: Boolean = false): DataResult<List<MatchEvent>> =
         load(
