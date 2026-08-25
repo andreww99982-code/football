@@ -18,16 +18,31 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Detect Android Gradle project
+        id: detect_project
+        run: |
+          if [ -f gradlew ] && { [ -f settings.gradle ] || [ -f settings.gradle.kts ]; }; then
+            echo "has_gradle_project=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_gradle_project=false" >> "$GITHUB_OUTPUT"
+            echo "No Gradle Android project detected at repository root; skipping build steps."
+          fi
       - uses: android-actions/setup-android@v3
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
       - name: Install Android SDK 35
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Grant execute permission
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
         run: chmod +x gradlew
       - name: Unit tests
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
         run: ./gradlew test
       - name: Assemble debug APK
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
         run: ./gradlew :app:assembleDebug
       - name: Upload APK artifact
+        if: steps.detect_project.outputs.has_gradle_project == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: R-Match-debug-apk
