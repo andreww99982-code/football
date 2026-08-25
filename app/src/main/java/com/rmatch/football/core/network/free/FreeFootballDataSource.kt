@@ -41,7 +41,7 @@ class FreeFootballDataSource(private val api: TheSportsDbApi) {
 
     suspend fun fixtureById(id: Int): DataResult<Fixture?> {
         return try {
-            val response = api.eventById(id)
+            val response = api.eventById(id.toLong())
             if (!response.isSuccessful) {
                 DataResult.Failure(AppError.Http(response.code()))
             } else {

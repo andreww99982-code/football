@@ -22,6 +22,6 @@ interface TheSportsDbApi {
     /** Look up a single event by its TheSportsDB event ID. */
     @GET("lookupevent.php")
     suspend fun eventById(
-        @Query("id") id: Int
+        @Query("id") id: Long
     ): Response<TheSportsDbEventsEnvelope>
 }

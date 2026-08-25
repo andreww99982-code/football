@@ -256,11 +256,10 @@ class FootballRepository(
         ) { api.fixtures(mapOf("id" to fixtureId.toString())) }
             .map { it.toFixtures().firstOrNull() }
 
-        val needsFallback = when (paid) {
-            is DataResult.Failure -> paid.error is AppError.NoApiKey ||
-                paid.error is AppError.RateLimited || paid.error is AppError.Unauthorized
-            is DataResult.Success -> paid.loaded.value == null
-        }
+        val needsFallback = paid is DataResult.Failure &&
+            (paid.error is AppError.NoApiKey ||
+                paid.error is AppError.RateLimited ||
+                paid.error is AppError.Unauthorized)
         if (needsFallback && freeDataSource != null) {
             val free = freeDataSource.fixtureById(fixtureId)
             if (free is DataResult.Success && free.loaded.value != null) return free
