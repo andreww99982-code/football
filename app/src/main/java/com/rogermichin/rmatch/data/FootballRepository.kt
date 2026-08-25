@@ -226,7 +226,13 @@ class FootballRepository(
         }
     }
 
-    private fun latestMeta(first: DataMeta, second: DataMeta): DataMeta = if (first.fetchedAtEpochMillis >= second.fetchedAtEpochMillis) first else second
+    private fun latestMeta(first: DataMeta?, second: DataMeta?): DataMeta = when {
+        first == null && second == null -> DataMeta("$sourceName / cache", Instant.now().toEpochMilli(), stale = true)
+        first == null -> second!!
+        second == null -> first
+        first.fetchedAtEpochMillis >= second.fetchedAtEpochMillis -> first
+        else -> second
+    }
     private fun Throwable.toReadableFailure(): Throwable = if (this is IOException) IllegalStateException("Похоже, соединение недоступно или API временно не отвечает") else this
 
     private fun <T> Response<ApiEnvelope<T>>.requireBody(): ApiEnvelope<T> {

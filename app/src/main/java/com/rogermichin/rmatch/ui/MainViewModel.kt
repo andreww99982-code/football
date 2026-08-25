@@ -72,7 +72,22 @@ class MainViewModel(private val repository: FootballRepository) : ViewModel() {
         repository.quotaFlow,
         countryFilter,
         leagueFilter,
-    ) { apiKey, busy, error, health, countriesValue, seasonsValue, leaguesValue, matchesValue, analyticsValue, leagueValue, matchValue, teamValue, quota, country, league ->
+    ) { values ->
+        val apiKey = values[0] as String?
+        val busy = values[1] as Boolean
+        val error = values[2] as String?
+        val health = values[3] as ScreenData<ApiHealth>
+        val countriesValue = values[4] as ScreenData<List<Country>>
+        val seasonsValue = values[5] as ScreenData<List<Int>>
+        val leaguesValue = values[6] as ScreenData<List<LeagueSummary>>
+        val matchesValue = values[7] as ScreenData<List<MatchSummary>>
+        val analyticsValue = values[8] as ScreenData<List<Pair<MatchSummary, MatchAnalysis?>>>
+        val leagueValue = values[9] as ScreenData<LeagueDetails>
+        val matchValue = values[10] as ScreenData<MatchDetails>
+        val teamValue = values[11] as ScreenData<TeamProfile>
+        val quota = values[12] as QuotaInfo
+        val country = values[13] as String
+        val league = values[14] as String
         MainUiState(
             apiKeyPresent = !apiKey.isNullOrBlank(),
             maskedApiKey = repository.maskApiKey(),

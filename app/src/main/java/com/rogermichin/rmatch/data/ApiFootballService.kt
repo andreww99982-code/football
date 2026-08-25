@@ -63,6 +63,7 @@ interface ApiFootballService {
     @GET("players/squads")
     suspend fun getSquad(@Query("team") teamId: Int): Response<ApiEnvelope<List<SquadResponseDto>>>
 
+    // API-Football / API-Sports uses the historic "coachs" path.
     @GET("coachs")
     suspend fun getCoaches(@Query("team") teamId: Int): Response<ApiEnvelope<List<CoachResponseDto>>>
 
