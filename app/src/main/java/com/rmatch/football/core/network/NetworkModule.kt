@@ -1,5 +1,6 @@
 package com.rmatch.football.core.network
 
+import com.rmatch.football.core.network.free.TheSportsDbApi
 import com.rmatch.football.core.security.ApiKeyStorage
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
@@ -34,4 +35,19 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(FootballApi::class.java)
+
+    /** Free TheSportsDB API (no key required). */
+    fun theSportsDbApi(): TheSportsDbApi {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(45, TimeUnit.SECONDS)
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://www.thesportsdb.com/api/v1/json/3/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(TheSportsDbApi::class.java)
+    }
 }

@@ -1,5 +1,6 @@
 package com.rmatch.football.feature.matches
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.FilterAltOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -26,6 +30,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -44,10 +51,14 @@ import com.rmatch.football.ui.components.ErrorState
 import com.rmatch.football.ui.components.FilterChipRow
 import com.rmatch.football.ui.components.LoadingState
 import com.rmatch.football.ui.components.OfflineBanner
+import com.rmatch.football.ui.components.RMatchLogo
 import com.rmatch.football.ui.components.RemoteLogo
 import com.rmatch.football.ui.components.StatusBadge
+import com.rmatch.football.ui.theme.RMatchAccent
 import com.rmatch.football.ui.theme.RMatchMuted
+import com.rmatch.football.ui.theme.RMatchOnDark
 import com.rmatch.football.ui.theme.RMatchSurface
+import com.rmatch.football.ui.theme.RMatchSurfaceVariant
 
 @Composable
 fun MatchesScreen(
@@ -60,12 +71,32 @@ fun MatchesScreen(
     )
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showAdvancedFilters by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Матчи") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RMatchLogo(size = 32.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "R-Match",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = RMatchOnDark,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = RMatchSurface),
             actions = {
+                IconButton(onClick = { showAdvancedFilters = !showAdvancedFilters }) {
+                    Icon(
+                        imageVector = if (showAdvancedFilters) Icons.Filled.FilterAltOff
+                        else Icons.Filled.FilterAlt,
+                        contentDescription = "Расширенные фильтры",
+                        tint = if (showAdvancedFilters) RMatchAccent else RMatchMuted
+                    )
+                }
                 IconButton(onClick = { viewModel.refresh(forceRefresh = true) }) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
@@ -92,8 +123,42 @@ fun MatchesScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp)
         )
+
+        AnimatedVisibility(visible = showAdvancedFilters) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = state.countryFilter,
+                        onValueChange = viewModel::onCountryFilterChanged,
+                        label = { Text("Страна") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = state.leagueFilter,
+                        onValueChange = viewModel::onLeagueFilterChanged,
+                        label = { Text("Лига") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // Status quick-filter chips
+                val statusOptions = listOf("" to "Все", "live" to "Live", "upcoming" to "Предстоящие", "finished" to "Завершённые")
+                val selectedStatus = statusOptions.indexOfFirst { it.first == state.statusFilter }.coerceAtLeast(0)
+                FilterChipRow(
+                    options = statusOptions.map { it.second },
+                    selectedIndex = selectedStatus,
+                    onSelect = { viewModel.onStatusFilterChanged(statusOptions[it].first) }
+                )
+            }
+        }
 
         when (val content = state.content) {
             is UiState.Loading -> LoadingState(modifier = Modifier.fillMaxWidth())
@@ -108,7 +173,13 @@ fun MatchesScreen(
             )
 
             is UiState.Content -> {
-                val filtered = MatchesGrouping.filter(content.data, state.query)
+                val filtered = MatchesGrouping.filter(
+                    fixtures = content.data,
+                    query = state.query,
+                    countryFilter = state.countryFilter,
+                    leagueFilter = state.leagueFilter,
+                    statusFilter = state.statusFilter
+                )
                 if (filtered.isEmpty()) {
                     EmptyState(message = ErrorMessages.NO_VERIFIED_DATA)
                 } else {
@@ -128,7 +199,7 @@ fun MatchesScreen(
                                 FixtureCard(
                                     fixture = fixture,
                                     onClick = { onOpenMatch(fixture.id) },
-                                    onTeamClick = onOpenTeam
+                                    onTeamClick = {} // team clicks only from match detail
                                 )
                             }
                         }
@@ -155,9 +226,11 @@ fun FixtureCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = RMatchSurface)
+        colors = CardDefaults.cardColors(containerColor = RMatchSurface),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -177,19 +250,17 @@ fun FixtureCard(
                     live = fixture.status.isLive
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             TeamLine(
                 name = fixture.home.name,
                 logoUrl = fixture.home.logoUrl,
-                goals = fixture.homeGoals,
-                onClick = { onTeamClick(fixture.home.id) }
+                goals = fixture.homeGoals
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             TeamLine(
                 name = fixture.away.name,
                 logoUrl = fixture.away.logoUrl,
-                goals = fixture.awayGoals,
-                onClick = { onTeamClick(fixture.away.id) }
+                goals = fixture.awayGoals
             )
         }
     }
@@ -199,13 +270,10 @@ fun FixtureCard(
 private fun TeamLine(
     name: String,
     logoUrl: String?,
-    goals: Int?,
-    onClick: () -> Unit
+    goals: Int?
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RemoteLogo(url = logoUrl, description = "Эмблема команды $name")

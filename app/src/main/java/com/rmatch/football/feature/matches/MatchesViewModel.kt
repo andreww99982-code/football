@@ -25,6 +25,9 @@ enum class MatchesFilter(val title: String) {
 data class MatchesUiState(
     val filter: MatchesFilter = MatchesFilter.TODAY,
     val query: String = "",
+    val countryFilter: String = "",
+    val leagueFilter: String = "",
+    val statusFilter: String = "",
     val online: Boolean = true,
     val content: UiState<List<Fixture>> = UiState.Loading
 )
@@ -61,6 +64,18 @@ class MatchesViewModel(
         internalState.value = internalState.value.copy(query = value)
     }
 
+    fun onCountryFilterChanged(value: String) {
+        internalState.value = internalState.value.copy(countryFilter = value)
+    }
+
+    fun onLeagueFilterChanged(value: String) {
+        internalState.value = internalState.value.copy(leagueFilter = value)
+    }
+
+    fun onStatusFilterChanged(value: String) {
+        internalState.value = internalState.value.copy(statusFilter = value)
+    }
+
     fun refresh(forceRefresh: Boolean = false) {
         internalState.value = internalState.value.copy(content = UiState.Loading)
         viewModelScope.launch {
@@ -84,15 +99,46 @@ class MatchesViewModel(
 /** Pure filtering + grouping helpers (unit tested). */
 object MatchesGrouping {
 
-    fun filter(fixtures: List<Fixture>, query: String): List<Fixture> {
+    fun filter(
+        fixtures: List<Fixture>,
+        query: String,
+        countryFilter: String = "",
+        leagueFilter: String = "",
+        statusFilter: String = ""
+    ): List<Fixture> {
+        var result = fixtures
+
         val trimmed = query.trim().lowercase()
-        if (trimmed.isEmpty()) return fixtures
-        return fixtures.filter { fixture ->
-            fixture.home.name.lowercase().contains(trimmed) ||
-                fixture.away.name.lowercase().contains(trimmed) ||
-                fixture.league?.name?.lowercase()?.contains(trimmed) == true ||
-                fixture.league?.country?.lowercase()?.contains(trimmed) == true
+        if (trimmed.isNotEmpty()) {
+            result = result.filter { fixture ->
+                fixture.home.name.lowercase().contains(trimmed) ||
+                    fixture.away.name.lowercase().contains(trimmed) ||
+                    fixture.league?.name?.lowercase()?.contains(trimmed) == true ||
+                    fixture.league?.country?.lowercase()?.contains(trimmed) == true
+            }
         }
+
+        val country = countryFilter.trim().lowercase()
+        if (country.isNotEmpty()) {
+            result = result.filter {
+                it.league?.country?.lowercase()?.contains(country) == true
+            }
+        }
+
+        val league = leagueFilter.trim().lowercase()
+        if (league.isNotEmpty()) {
+            result = result.filter {
+                it.league?.name?.lowercase()?.contains(league) == true
+            }
+        }
+
+        when (statusFilter) {
+            "live" -> result = result.filter { it.status.isLive }
+            "upcoming" -> result = result.filter { it.status.isUpcoming }
+            "finished" -> result = result.filter { it.status.isFinished }
+        }
+
+        return result
     }
 
     fun groupByDate(fixtures: List<Fixture>): List<Pair<String, List<Fixture>>> =

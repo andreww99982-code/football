@@ -4,4 +4,11 @@
         <item name="android:navigationBarColor">#0D1117</item>
         <item name="android:windowBackground">#0D1117</item>
     </style>
+
+    <!-- Splash screen theme using core-splashscreen -->
+    <style name="Theme.RMatch.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#0D1117</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_rmatch_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.RMatch</item>
+    </style>
 </resources>

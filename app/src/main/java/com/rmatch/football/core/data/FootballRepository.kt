@@ -19,7 +19,7 @@ import com.rmatch.football.core.domain.model.TeamProfile
 import com.rmatch.football.core.domain.model.TeamSeasonStats
 import com.rmatch.football.core.network.ApiConstants
 import com.rmatch.football.core.network.FootballApi
-import com.rmatch.football.core.network.QuotaTracker
+import com.rmatch.football.core.network.free.FreeFootballDataSource
 import com.rmatch.football.core.network.dto.ApiEnvelope
 import com.rmatch.football.core.network.dto.CoachDto
 import com.rmatch.football.core.network.dto.CountryDto
@@ -71,6 +71,7 @@ class FootballRepository(
     private val json: Json,
     private val keyStorage: ApiKeyStorage,
     private val quotaTracker: QuotaTracker,
+    private val freeDataSource: FreeFootballDataSource? = null,
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
 ) {
 
@@ -166,14 +167,27 @@ class FootballRepository(
     suspend fun fixturesByDate(
         date: LocalDate,
         forceRefresh: Boolean = false
-    ): DataResult<List<Fixture>> =
-        load(
+    ): DataResult<List<Fixture>> {
+        val paid = load(
             cacheKey = "fixtures:date:$date",
             ttlMillis = CacheTtl.UPCOMING_MILLIS,
             serializer = ListSerializer(FixtureDto.serializer()),
             forceRefresh = forceRefresh
         ) { api.fixtures(mapOf("date" to date.toString())) }
             .map { it.toFixtures() }
+
+        // Fall back to free source when paid API has no key, quota exceeded, or returned empty
+        val needsFallback = when (paid) {
+            is DataResult.Failure -> paid.error is AppError.NoApiKey ||
+                paid.error is AppError.RateLimited || paid.error is AppError.Unauthorized
+            is DataResult.Success -> paid.loaded.value.isEmpty()
+        }
+        if (needsFallback && freeDataSource != null) {
+            val free = freeDataSource.fixturesByDate(date)
+            if (free is DataResult.Success && free.loaded.value.isNotEmpty()) return free
+        }
+        return paid
+    }
 
     suspend fun liveFixtures(forceRefresh: Boolean = true): DataResult<List<Fixture>> =
         load(
