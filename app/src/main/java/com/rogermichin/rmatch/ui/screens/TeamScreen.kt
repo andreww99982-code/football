@@ -28,7 +28,7 @@ fun TeamScreen(state: ScreenData<TeamProfile>, onBack: () -> Unit) {
                     Text("Сухие матчи: ${it.cleanSheets ?: 0} · не забили: ${it.failedToScore ?: 0}")
                 } ?: Text("Нет верифицированных данных")
             }
-            SectionCard("Тренеры") { if (team.coachs.isEmpty()) Text("Нет верифицированных данных"); team.coachs.forEach { Text("• ${it.name} · ${it.nationality ?: "—"}") } }
+            SectionCard("Тренеры") { if (team.coaches.isEmpty()) Text("Нет верифицированных данных"); team.coaches.forEach { Text("• ${it.name} · ${it.nationality ?: "—"}") } }
             SectionCard("Состав") { if (team.squad.isEmpty()) Text("Нет верифицированных данных"); team.squad.forEach { Text("• ${it.number ?: 0} ${it.name} · ${it.position ?: "—"} · ${it.goals ?: 0}G/${it.assists ?: 0}A") } }
             SectionCard("Последние матчи") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { team.recentMatches.forEach { Text("• ${it.homeTeam.name} ${it.homeGoals ?: "—"}:${it.awayGoals ?: "—"} ${it.awayTeam.name}") } } }
             SectionCard("Травмы") { if (team.injuries.isEmpty()) Text("Нет верифицированных данных"); team.injuries.forEach { Text("• ${it.playerName} · ${it.type ?: "—"} · ${it.reason ?: "Причина не уточнена"}") } }

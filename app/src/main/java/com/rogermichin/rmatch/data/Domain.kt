@@ -60,7 +60,7 @@ data class PlayerCard(
     val injured: Boolean?,
 )
 data class CoachCard(val id: Int, val name: String, val nationality: String?, val age: Int?, val currentTeam: String?)
-data class InjuryCard(val playerName: String, val teamName: String, val type: String?, val reason: String?)
+data class InjuryCard(val playerName: String, val teamId: Int, val teamName: String, val type: String?, val reason: String?)
 data class TeamStatistics(
     val form: String?,
     val playedHome: Int?,
@@ -79,7 +79,7 @@ data class TeamProfile(
     val founded: Int?,
     val venue: String?,
     val city: String?,
-    val coachs: List<CoachCard>,
+    val coaches: List<CoachCard>,
     val squad: List<PlayerCard>,
     val statistics: TeamStatistics?,
     val recentMatches: List<MatchSummary>,

@@ -32,8 +32,8 @@ class AnalystEngine {
             homeRank != null && awayRank != null -> ((awayRank - homeRank).coerceIn(-10, 10)) * 0.02
             else -> 0.0
         }
-        val homeInjuries = injuries.count { it.teamName == homeTeam.name }
-        val awayInjuries = injuries.count { it.teamName == awayTeam.name }
+        val homeInjuries = injuries.count { it.teamId == homeTeam.id }
+        val awayInjuries = injuries.count { it.teamId == awayTeam.id }
         val injuriesFactor = (awayInjuries - homeInjuries) * 0.04
         val lineupFactor = if (lineupsPublished) 0.05 else 0.0
         val homeLambda = max(0.2, ((homeAttack + awayDefense) / 2.0) * (1.08 + tableFactor + injuriesFactor + lineupFactor))

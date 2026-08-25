@@ -2,6 +2,9 @@ package com.rogermichin.rmatch.data
 
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.adapter
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -101,7 +104,7 @@ class FootballRepository(
         val players = cached("players:$teamId:$season", Duration.ofHours(6), forceRefresh) {
             service.getPlayers(teamId, season).requireBody().response.orEmpty().mapNotNull { it.toDomainPlayerCard() }
         }
-        val coaches = cached("coachs:$teamId", Duration.ofHours(12), forceRefresh) {
+        val coaches = cached("coaches:$teamId", Duration.ofHours(12), forceRefresh) {
             service.getCoaches(teamId).requireBody().response.orEmpty().mapNotNull { it.toDomainCoachCard() }
         }
         val recentMatches = cached("team-last:$teamId:$season", Duration.ofMinutes(20), forceRefresh) {
@@ -129,7 +132,7 @@ class FootballRepository(
                 founded = teamDto?.founded,
                 venue = teamInfo?.venue?.name,
                 city = teamInfo?.venue?.city,
-                coachs = coaches.data,
+                coaches = coaches.data,
                 squad = mergedPlayers,
                 statistics = stats.data,
                 recentMatches = recentMatches.data,
@@ -186,7 +189,16 @@ class FootballRepository(
 
     suspend fun getAnalyticsCards(forceRefresh: Boolean = false): DataResource<List<Pair<MatchSummary, MatchAnalysis?>>> {
         val matches = getMatches(next = 10, forceRefresh = forceRefresh)
-        return DataResource(matches.data.map { match -> match to runCatching { getMatchDetails(match.fixtureId, match.leagueId, match.season, forceRefresh).data.analysis }.getOrNull() }, matches.meta)
+        val analytics = coroutineScope {
+            matches.data.map { match ->
+                async {
+                    match to runCatching {
+                        getMatchDetails(match.fixtureId, match.leagueId, match.season, forceRefresh).data.analysis
+                    }.getOrNull()
+                }
+            }.awaitAll()
+        }
+        return DataResource(analytics, matches.meta)
     }
 
     private suspend inline fun <reified T> cached(key: String, ttl: Duration, forceRefresh: Boolean = false, crossinline loader: suspend () -> T): DataResource<T> {
@@ -257,7 +269,12 @@ class FootballRepository(
     private fun List<FixtureStatisticsTeamDto>.toDomainStatsTable(): List<MatchStatisticRow> { if (size < 2) return emptyList(); val home = firstOrNull()?.statistics.orEmpty().associateBy { it.type }; val away = getOrNull(1)?.statistics.orEmpty().associateBy { it.type }; return home.keys.sorted().mapNotNull { key -> key?.let { MatchStatisticRow(it, home[it]?.value?.toString() ?: "—", away[it]?.value?.toString() ?: "—") } } }
     private fun LineupDto.toDomainLineup(): MatchLineup? = MatchLineup(team?.toDomainTeam() ?: return null, coach?.let { CoachCard(it.id ?: 0, it.name.orEmpty(), null, null, team?.name) }, formation, startXI.orEmpty().mapNotNull { it.player?.toDomainLineupPlayer() }, substitutes.orEmpty().mapNotNull { it.player?.toDomainLineupPlayer() })
     private fun LineupPlayerDto.toDomainLineupPlayer(): LineupPlayer? = if (id != null && name != null) LineupPlayer(id, name, number, pos, grid) else null
-    private fun InjuryResponseDto.toDomainInjuryCard(): InjuryCard? = if (player?.name != null && team?.name != null) InjuryCard(player.name, team.name, injury?.type, injury?.reason) else null
+    private fun InjuryResponseDto.toDomainInjuryCard(): InjuryCard? =
+        if (player?.name != null && team?.id != null && team.name != null) {
+            InjuryCard(player.name, team.id, team.name, injury?.type, injury?.reason)
+        } else {
+            null
+        }
     private fun OddsResponseDto.toDomainOddsMarkets(): List<OddsMarket> = bookmakers.orEmpty().flatMap { bookmaker -> bookmaker.bets.orEmpty().mapNotNull { bet ->
         val values = bet.values.orEmpty().mapNotNull { value -> value.odd?.toDoubleOrNull()?.takeIf { it > 1.0 }?.let { OddValue(value.value ?: return@mapNotNull null, it, analystEngine.impliedProbability(it)) } }
         if (values.isEmpty()) null else OddsMarket(bookmaker.name ?: "Bookmaker", bet.name ?: "Market", values, update, update?.let { runCatching { Duration.between(Instant.parse(it), Instant.now()).toHours() <= 24 }.getOrDefault(false) } ?: false)

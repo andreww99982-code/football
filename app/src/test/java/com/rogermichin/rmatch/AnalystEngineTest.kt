@@ -58,7 +58,7 @@ class AnalystEngineTest {
     @Test
     fun staleOddsSkipMarketComparison() {
         val staleOdds = listOf(OddsMarket("Book", "Match Winner", listOf(OddValue("1", 2.0, 0.5), OddValue("X", 3.0, 0.33), OddValue("2", 4.0, 0.25)), "2020-01-01T00:00:00Z", false))
-        val analysis = engine.analyze(1, home, away, sampleMatches(home, away, 8), sampleMatches(away, home, 8), sampleStandings(), listOf(InjuryCard("P1", "Home", "Knee", "Out")), false, staleOdds).getOrThrow()
+        val analysis = engine.analyze(1, home, away, sampleMatches(home, away, 8), sampleMatches(away, home, 8), sampleStandings(), listOf(InjuryCard("P1", 1, "Home", "Knee", "Out")), false, staleOdds).getOrThrow()
         assertThat(analysis.marketComparisons).isEmpty()
     }
 

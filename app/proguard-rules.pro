@@ -1,0 +1,4 @@
+-keep class retrofit2.** { *; }
+-keep class com.squareup.moshi.** { *; }
+-keep class androidx.room.** { *; }
+-dontwarn kotlin.Unit
