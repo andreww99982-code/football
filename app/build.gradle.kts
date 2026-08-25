@@ -1,8 +1,6 @@
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
-}
+apply(plugin = "com.android.application")
+apply(plugin = "org.jetbrains.kotlin.android")
+apply(plugin = "com.google.devtools.ksp")
 
 android {
     namespace = "com.rogermichin.rmatch"

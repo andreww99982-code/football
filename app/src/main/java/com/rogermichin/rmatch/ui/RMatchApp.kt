@@ -20,6 +20,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -55,10 +57,10 @@ fun RMatchApp(viewModel: MainViewModel) {
         NavItem("settings", "Настройки", Icons.Default.Settings),
     )
     Scaffold(
-        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(title = {
-                Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(2f.value))) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("R-Match")
                     Text("Roger&Michin Studio")
                 }
@@ -84,7 +86,7 @@ fun RMatchApp(viewModel: MainViewModel) {
             }
         },
     ) { innerPadding ->
-        NavHost(navController, startDestination = "matches", modifier = androidx.compose.ui.Modifier.padding(innerPadding)) {
+        NavHost(navController, startDestination = "matches", modifier = Modifier.padding(innerPadding)) {
             composable("matches") { MatchesScreen(state, viewModel::refreshDashboard, { match -> viewModel.selectMatch(match.fixtureId, match.leagueId, match.season); navController.navigate("match/${match.fixtureId}/${match.leagueId}/${match.season}") }, viewModel::saveCountryFilter, viewModel::saveLeagueFilter) }
             composable("leagues") { LeaguesScreen(state, viewModel::refreshDashboard, { league -> viewModel.selectLeague(league.id, league.season); navController.navigate("league/${league.id}/${league.season}") }) }
             composable("analytics") { AnalyticsScreen(state, viewModel::refreshDashboard, { match -> viewModel.selectMatch(match.fixtureId, match.leagueId, match.season); navController.navigate("match/${match.fixtureId}/${match.leagueId}/${match.season}") }) }
