@@ -43,11 +43,12 @@ class EncryptedPrefsStore(context: Context) : SecureValueStore {
     private companion object { const val KEY = "api_key" }
 }
 
-class ApiKeyStore(
-    context: Context? = null,
-    private val secureValueStore: SecureValueStore = context?.let(::EncryptedPrefsStore)
-        ?: error("Context or custom SecureValueStore must be provided"),
+class ApiKeyStore private constructor(
+    private val secureValueStore: SecureValueStore,
 ) {
+    constructor(context: Context) : this(EncryptedPrefsStore(context))
+    constructor(secureValueStore: SecureValueStore) : this(secureValueStore)
+
     private val mutableApiKey = MutableStateFlow(secureValueStore.read())
     val apiKeyFlow: StateFlow<String?> = mutableApiKey.asStateFlow()
 

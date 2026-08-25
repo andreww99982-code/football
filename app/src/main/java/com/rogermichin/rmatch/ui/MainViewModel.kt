@@ -41,6 +41,22 @@ data class MainUiState(
     val leagueFilter: String = "",
 )
 
+private data class AuthState(val apiKey: String?, val busy: Boolean, val error: String?)
+private data class CatalogState(
+    val apiHealth: ScreenData<ApiHealth>,
+    val countries: ScreenData<List<Country>>,
+    val seasons: ScreenData<List<Int>>,
+    val leagues: ScreenData<List<LeagueSummary>>,
+    val matches: ScreenData<List<MatchSummary>>,
+)
+private data class DetailState(
+    val analytics: ScreenData<List<Pair<MatchSummary, MatchAnalysis?>>>,
+    val selectedLeague: ScreenData<LeagueDetails>,
+    val selectedMatch: ScreenData<MatchDetails>,
+    val selectedTeam: ScreenData<TeamProfile>,
+    val quota: QuotaInfo,
+)
+
 class MainViewModel(private val repository: FootballRepository) : ViewModel() {
     private val apiHealth = MutableStateFlow(ScreenData<ApiHealth>())
     private val countries = MutableStateFlow(ScreenData<List<Country>>())
@@ -56,53 +72,38 @@ class MainViewModel(private val repository: FootballRepository) : ViewModel() {
     private val countryFilter = repository.countryFilter.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     private val leagueFilter = repository.leagueFilter.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
+    private val authState = combine(repository.apiKeyFlow, onboardingBusy, onboardingError) { apiKey, busy, error ->
+        AuthState(apiKey, busy, error)
+    }
+    private val catalogState = combine(apiHealth, countries, seasons, leagues, matches) { health, countriesValue, seasonsValue, leaguesValue, matchesValue ->
+        CatalogState(health, countriesValue, seasonsValue, leaguesValue, matchesValue)
+    }
+    private val detailState = combine(analytics, selectedLeague, selectedMatch, selectedTeam, repository.quotaFlow) { analyticsValue, leagueValue, matchValue, teamValue, quota ->
+        DetailState(analyticsValue, leagueValue, matchValue, teamValue, quota)
+    }
+
     val uiState: StateFlow<MainUiState> = combine(
-        repository.apiKeyFlow,
-        onboardingBusy,
-        onboardingError,
-        apiHealth,
-        countries,
-        seasons,
-        leagues,
-        matches,
-        analytics,
-        selectedLeague,
-        selectedMatch,
-        selectedTeam,
-        repository.quotaFlow,
+        authState,
+        catalogState,
+        detailState,
         countryFilter,
         leagueFilter,
-    ) { values ->
-        val apiKey = values[0] as String?
-        val busy = values[1] as Boolean
-        val error = values[2] as String?
-        val health = values[3] as ScreenData<ApiHealth>
-        val countriesValue = values[4] as ScreenData<List<Country>>
-        val seasonsValue = values[5] as ScreenData<List<Int>>
-        val leaguesValue = values[6] as ScreenData<List<LeagueSummary>>
-        val matchesValue = values[7] as ScreenData<List<MatchSummary>>
-        val analyticsValue = values[8] as ScreenData<List<Pair<MatchSummary, MatchAnalysis?>>>
-        val leagueValue = values[9] as ScreenData<LeagueDetails>
-        val matchValue = values[10] as ScreenData<MatchDetails>
-        val teamValue = values[11] as ScreenData<TeamProfile>
-        val quota = values[12] as QuotaInfo
-        val country = values[13] as String
-        val league = values[14] as String
+    ) { auth, catalog, detail, country, league ->
         MainUiState(
-            apiKeyPresent = !apiKey.isNullOrBlank(),
+            apiKeyPresent = !auth.apiKey.isNullOrBlank(),
             maskedApiKey = repository.maskApiKey(),
-            onboardingBusy = busy,
-            onboardingError = error,
-            apiHealth = health,
-            countries = countriesValue,
-            seasons = seasonsValue,
-            leagues = leaguesValue,
-            matches = matchesValue,
-            analytics = analyticsValue,
-            selectedLeague = leagueValue,
-            selectedMatch = matchValue,
-            selectedTeam = teamValue,
-            quota = quota,
+            onboardingBusy = auth.busy,
+            onboardingError = auth.error,
+            apiHealth = catalog.apiHealth,
+            countries = catalog.countries,
+            seasons = catalog.seasons,
+            leagues = catalog.leagues,
+            matches = catalog.matches,
+            analytics = detail.analytics,
+            selectedLeague = detail.selectedLeague,
+            selectedMatch = detail.selectedMatch,
+            selectedTeam = detail.selectedTeam,
+            quota = detail.quota,
             countryFilter = country,
             leagueFilter = league,
         )

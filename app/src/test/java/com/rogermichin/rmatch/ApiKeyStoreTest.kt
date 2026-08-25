@@ -8,7 +8,7 @@ import org.junit.Test
 class ApiKeyStoreTest {
     @Test
     fun saveReadDeleteAndMask() {
-        val store = ApiKeyStore(secureValueStore = FakeStore())
+        val store = ApiKeyStore(FakeStore())
         store.save("abcdef123456")
         assertThat(store.currentKey()).isEqualTo("abcdef123456")
         assertThat(store.mask()).isEqualTo("abc••••••456")

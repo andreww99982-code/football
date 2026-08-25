@@ -146,30 +146,66 @@ class FootballRepository(
         val fixture = cached("fixture:$fixtureId", Duration.ofMinutes(10), forceRefresh) {
             service.getFixtures(fixtureId = fixtureId).requireBody().response.orEmpty().firstOrNull()?.toDomainMatch() ?: throw IllegalStateException("Матч не найден")
         }
-        val standings = cached("fixture-standings:$leagueId:$season", Duration.ofMinutes(20), forceRefresh) {
-            service.getStandings(leagueId, season).requireBody().response.orEmpty().firstOrNull()?.league?.standings.orEmpty().flatten().mapNotNull { it.toDomainStanding() }
+        val detailResources = coroutineScope {
+            val standingsDeferred = async {
+                cached("fixture-standings:$leagueId:$season", Duration.ofMinutes(20), forceRefresh) {
+                    service.getStandings(leagueId, season).requireBody().response.orEmpty().firstOrNull()?.league?.standings.orEmpty().flatten().mapNotNull { it.toDomainStanding() }
+                }
+            }
+            val eventsDeferred = async {
+                cached("events:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
+                    service.getFixtureEvents(fixtureId).requireBody().response.orEmpty().mapNotNull { it.toDomainEvent() }
+                }
+            }
+            val statisticsDeferred = async {
+                cached("stats:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
+                    service.getFixtureStatistics(fixtureId).requireBody().response.orEmpty().toDomainStatsTable()
+                }
+            }
+            val lineupsDeferred = async {
+                cached("lineups:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
+                    service.getFixtureLineups(fixtureId).requireBody().response.orEmpty().mapNotNull { it.toDomainLineup() }
+                }
+            }
+            val injuriesDeferred = async {
+                cached("fixture-injuries:$fixtureId", Duration.ofMinutes(20), forceRefresh) {
+                    service.getInjuries(fixtureId = fixtureId, leagueId = leagueId, season = season).requireBody().response.orEmpty().mapNotNull { it.toDomainInjuryCard() }
+                }
+            }
+            val oddsDeferred = async {
+                cached("odds:$fixtureId", Duration.ofMinutes(10), forceRefresh) {
+                    service.getOdds(fixtureId).requireBody().response.orEmpty().flatMap { it.toDomainOddsMarkets() }
+                }
+            }
+            val homeFormDeferred = async {
+                cached("home-form:${fixture.data.homeTeam.id}:$season", Duration.ofMinutes(20), forceRefresh) {
+                    service.getFixtures(team = fixture.data.homeTeam.id, season = season, last = 10).requireBody().response.orEmpty().mapNotNull { it.toDomainMatch() }
+                }
+            }
+            val awayFormDeferred = async {
+                cached("away-form:${fixture.data.awayTeam.id}:$season", Duration.ofMinutes(20), forceRefresh) {
+                    service.getFixtures(team = fixture.data.awayTeam.id, season = season, last = 10).requireBody().response.orEmpty().mapNotNull { it.toDomainMatch() }
+                }
+            }
+            DetailResources(
+                standings = standingsDeferred.await(),
+                events = eventsDeferred.await(),
+                statistics = statisticsDeferred.await(),
+                lineups = lineupsDeferred.await(),
+                injuries = injuriesDeferred.await(),
+                odds = oddsDeferred.await(),
+                homeForm = homeFormDeferred.await(),
+                awayForm = awayFormDeferred.await(),
+            )
         }
-        val events = cached("events:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
-            service.getFixtureEvents(fixtureId).requireBody().response.orEmpty().mapNotNull { it.toDomainEvent() }
-        }
-        val statistics = cached("stats:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
-            service.getFixtureStatistics(fixtureId).requireBody().response.orEmpty().toDomainStatsTable()
-        }
-        val lineups = cached("lineups:$fixtureId", Duration.ofMinutes(5), forceRefresh) {
-            service.getFixtureLineups(fixtureId).requireBody().response.orEmpty().mapNotNull { it.toDomainLineup() }
-        }
-        val injuries = cached("fixture-injuries:$fixtureId", Duration.ofMinutes(20), forceRefresh) {
-            service.getInjuries(fixtureId = fixtureId, leagueId = leagueId, season = season).requireBody().response.orEmpty().mapNotNull { it.toDomainInjuryCard() }
-        }
-        val odds = cached("odds:$fixtureId", Duration.ofMinutes(10), forceRefresh) {
-            service.getOdds(fixtureId).requireBody().response.orEmpty().flatMap { it.toDomainOddsMarkets() }
-        }
-        val homeForm = cached("home-form:${fixture.data.homeTeam.id}:$season", Duration.ofMinutes(20), forceRefresh) {
-            service.getFixtures(team = fixture.data.homeTeam.id, season = season, last = 10).requireBody().response.orEmpty().mapNotNull { it.toDomainMatch() }
-        }
-        val awayForm = cached("away-form:${fixture.data.awayTeam.id}:$season", Duration.ofMinutes(20), forceRefresh) {
-            service.getFixtures(team = fixture.data.awayTeam.id, season = season, last = 10).requireBody().response.orEmpty().mapNotNull { it.toDomainMatch() }
-        }
+        val standings = detailResources.standings
+        val events = detailResources.events
+        val statistics = detailResources.statistics
+        val lineups = detailResources.lineups
+        val injuries = detailResources.injuries
+        val odds = detailResources.odds
+        val homeForm = detailResources.homeForm
+        val awayForm = detailResources.awayForm
         val analysis = analystEngine.analyze(
             fixtureId,
             fixture.data.homeTeam,
@@ -233,6 +269,17 @@ class FootballRepository(
         first.fetchedAtEpochMillis >= second.fetchedAtEpochMillis -> first
         else -> second
     }
+
+    private data class DetailResources(
+        val standings: DataResource<List<StandingRow>>,
+        val events: DataResource<List<MatchEvent>>,
+        val statistics: DataResource<List<MatchStatisticRow>>,
+        val lineups: DataResource<List<MatchLineup>>,
+        val injuries: DataResource<List<InjuryCard>>,
+        val odds: DataResource<List<OddsMarket>>,
+        val homeForm: DataResource<List<MatchSummary>>,
+        val awayForm: DataResource<List<MatchSummary>>,
+    )
     private fun Throwable.toReadableFailure(): Throwable = if (this is IOException) IllegalStateException("Похоже, соединение недоступно или API временно не отвечает") else this
 
     private fun <T> Response<ApiEnvelope<T>>.requireBody(): ApiEnvelope<T> {
