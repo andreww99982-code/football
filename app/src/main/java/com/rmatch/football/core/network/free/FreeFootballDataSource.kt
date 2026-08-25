@@ -39,6 +39,21 @@ class FreeFootballDataSource(private val api: TheSportsDbApi) {
         }
     }
 
+    suspend fun fixtureById(id: Int): DataResult<Fixture?> {
+        return try {
+            val response = api.eventById(id)
+            if (!response.isSuccessful) {
+                DataResult.Failure(AppError.Http(response.code()))
+            } else {
+                val event = response.body()?.events?.firstOrNull()
+                val now = System.currentTimeMillis()
+                DataResult.Success(Loaded(event?.toDomain(), now, false))
+            }
+        } catch (e: Exception) {
+            DataResult.Failure(AppError.Network(e.message ?: "Network error"))
+        }
+    }
+
     private fun TheSportsDbEventDto.toDomain(): Fixture? {
         val id = idEvent?.toIntOrNull() ?: return null
         val homeName = strHomeTeam ?: return null
