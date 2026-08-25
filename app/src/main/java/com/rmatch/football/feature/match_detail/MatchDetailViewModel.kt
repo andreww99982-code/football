@@ -105,11 +105,14 @@ class MatchDetailViewModel(
 
     private fun loadAnalysis(forceRefresh: Boolean = false) {
         analysisRequested = true
+        viewModelScope.launch { runAnalysis(forceRefresh) }
+    }
+
+    private suspend fun runAnalysis(forceRefresh: Boolean) {
+        analysisRequested = true
         internalState.value = internalState.value.copy(analysis = UiState.Loading)
-        viewModelScope.launch {
-            val result = analyzeFixture(fixtureId, forceRefresh)
-            internalState.value = internalState.value.copy(analysis = result.toUiState())
-        }
+        val result = analyzeFixture(fixtureId, forceRefresh)
+        internalState.value = internalState.value.copy(analysis = result.toUiState())
     }
 
     private fun loadLineups(forceRefresh: Boolean = false) {
@@ -141,7 +144,7 @@ class MatchDetailViewModel(
         oddsRequested = true
         internalState.value = internalState.value.copy(odds = UiState.Loading)
         viewModelScope.launch {
-            if (!analysisRequested) loadAnalysis()
+            if (!analysisRequested) runAnalysis(forceRefresh = false)
             val result = repository.odds(fixtureId, forceRefresh)
             val model = modelProbabilities()
             internalState.value = internalState.value.copy(
