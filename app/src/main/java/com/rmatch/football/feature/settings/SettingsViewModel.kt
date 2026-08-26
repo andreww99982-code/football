@@ -3,6 +3,7 @@ package com.rmatch.football.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rmatch.football.core.data.FootballRepository
+import com.rmatch.football.core.datastore.SettingsDataStore
 import com.rmatch.football.core.domain.model.ProviderStatus
 import com.rmatch.football.core.domain.model.QuotaInfo
 import com.rmatch.football.core.security.ApiKeyStorage
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
+    val sourceName: String = "Бесплатные API",
     val maskedKey: String = "—",
     val hasKey: Boolean = false,
     val online: Boolean = true,
@@ -35,7 +37,8 @@ data class SettingsUiState(
 class SettingsViewModel(
     private val repository: FootballRepository,
     private val keyStorage: ApiKeyStorage,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val settings: SettingsDataStore
 ) : ViewModel() {
 
     private val internalState = MutableStateFlow(SettingsUiState())
@@ -52,6 +55,7 @@ class SettingsViewModel(
 
     fun refresh() {
         internalState.value = internalState.value.copy(
+            sourceName = if (keyStorage.hasKey()) "API-Football (личный ключ)" else "TheSportsDB + OpenLigaDB",
             maskedKey = ApiKeyValidator.mask(keyStorage.getKey()),
             hasKey = keyStorage.hasKey(),
             online = networkMonitor.isOnline()
@@ -67,7 +71,7 @@ class SettingsViewModel(
     fun checkConnection() {
         if (!keyStorage.hasKey()) {
             internalState.value = internalState.value.copy(
-                statusMessage = "Ключ не сохранён — проверка недоступна."
+                statusMessage = "Личный ключ не сохранён. Работают бесплатные источники, если у них есть покрытие."
             )
             return
         }
@@ -136,7 +140,9 @@ class SettingsViewModel(
     fun deleteKey() {
         viewModelScope.launch {
             repository.clearKeyAndCache()
+            settings.setOnboardingCompleted(false)
             internalState.value = SettingsUiState(
+                sourceName = "Бесплатные API",
                 maskedKey = "—",
                 hasKey = false,
                 online = networkMonitor.isOnline(),

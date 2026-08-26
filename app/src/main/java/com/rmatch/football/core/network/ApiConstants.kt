@@ -5,6 +5,6 @@ object ApiConstants {
     const val HEADER_KEY = "x-apisports-key"
     const val HEADER_QUOTA_REMAINING = "x-ratelimit-requests-remaining"
     const val HEADER_QUOTA_LIMIT = "x-ratelimit-requests-limit"
-    const val ATTRIBUTION = "Данные: API-Football.com • Roger&Michin Studio"
+    const val ATTRIBUTION = "Данные: API-Football.com • TheSportsDB • OpenLigaDB • Roger&Michin Studio"
     const val PROVIDER_URL = "https://www.api-football.com/"
 }
