@@ -218,7 +218,16 @@ class OpenLigaDbDataSource(private val api: OpenLigaDbApi) {
         )
     }
 
-    private fun localLeagueId(shortcut: String): Int = -kotlin.math.abs(shortcut.hashCode().coerceAtLeast(1))
+    private fun localLeagueId(shortcut: String): Int {
+        val normalized = shortcut.lowercase()
+        val hash = normalized.hashCode()
+        val safe = when (hash) {
+            Int.MIN_VALUE -> Int.MAX_VALUE
+            0 -> 1
+            else -> kotlin.math.abs(hash)
+        }
+        return -safe
+    }
 
     private fun parseUtc(raw: String?): Long? = raw?.takeIf { it.isNotBlank() }?.let {
         runCatching { Instant.parse(normalizeUtc(it)).epochSecond }.getOrNull()
