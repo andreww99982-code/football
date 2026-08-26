@@ -1,5 +1,6 @@
 package com.rmatch.football.core.network
 
+import com.rmatch.football.core.network.free.OpenLigaDbApi
 import com.rmatch.football.core.network.free.TheSportsDbApi
 import com.rmatch.football.core.security.ApiKeyStorage
 import java.util.concurrent.TimeUnit
@@ -49,5 +50,20 @@ object NetworkModule {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(TheSportsDbApi::class.java)
+    }
+
+    /** Free OpenLigaDB API (no key required). */
+    fun openLigaDbApi(): OpenLigaDbApi {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(45, TimeUnit.SECONDS)
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://api.openligadb.de/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(OpenLigaDbApi::class.java)
     }
 }

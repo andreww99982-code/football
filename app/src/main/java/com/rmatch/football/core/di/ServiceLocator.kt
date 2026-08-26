@@ -9,6 +9,7 @@ import com.rmatch.football.core.network.FootballApi
 import com.rmatch.football.core.network.NetworkModule
 import com.rmatch.football.core.network.QuotaTracker
 import com.rmatch.football.core.network.free.FreeFootballDataSource
+import com.rmatch.football.core.network.free.OpenLigaDbDataSource
 import com.rmatch.football.core.security.ApiKeyStorage
 import com.rmatch.football.core.security.ApiKeyStore
 import com.rmatch.football.core.util.NetworkMonitor
@@ -36,6 +37,10 @@ object ServiceLocator {
         FreeFootballDataSource(NetworkModule.theSportsDbApi())
     }
 
+    private val openLigaDbDataSource: OpenLigaDbDataSource by lazy {
+        OpenLigaDbDataSource(NetworkModule.openLigaDbApi())
+    }
+
     val repository: FootballRepository by lazy {
         FootballRepository(
             api = api,
@@ -43,7 +48,8 @@ object ServiceLocator {
             json = NetworkModule.json,
             keyStorage = apiKeyStorage,
             quotaTracker = quotaTracker,
-            freeDataSource = freeDataSource
+            freeDataSource = freeDataSource,
+            openLigaDbDataSource = openLigaDbDataSource
         )
     }
 

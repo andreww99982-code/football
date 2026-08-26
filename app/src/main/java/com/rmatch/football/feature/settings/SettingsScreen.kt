@@ -51,7 +51,8 @@ fun SettingsScreen(
             SettingsViewModel(
                 repository = ServiceLocator.repository,
                 keyStorage = ServiceLocator.apiKeyStorage,
-                networkMonitor = ServiceLocator.networkMonitor
+                networkMonitor = ServiceLocator.networkMonitor,
+                settings = ServiceLocator.settings
             )
         }
     )
@@ -74,6 +75,21 @@ fun SettingsScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
         ) {
+            SectionTitle("Источник данных")
+            InfoRow("Режим", state.sourceName)
+            Text(
+                text = if (state.hasKey) {
+                    "Приложение использует API-Football через ваш личный ключ. Если удалить ключ, " +
+                        "при следующем запуске снова появится выбор между бесплатными и платным источником."
+                } else {
+                    "Сейчас активны бесплатные источники TheSportsDB и OpenLigaDB. " +
+                        "Они не требуют ключа, но часть расширенной статистики может отсутствовать."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = RMatchMuted,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
             SectionTitle("Ключ API")
             InfoRow("Статус", if (state.hasKey) "Сохранён" else "Не сохранён")
             InfoRow("Ключ", state.maskedKey)
@@ -196,8 +212,8 @@ fun SettingsScreen(
             SectionTitle("Источники и правила")
             Text(
                 text = "Данные предоставляются API-Football.com (API-Sports). Приложение не " +
-                    "парсит сторонние сайты, не обходит ограничения провайдеров и не " +
-                    "распространяет нелегальные трансляции.",
+                    "использует пиратские источники. Для бесплатного режима дополнительно " +
+                    "подключены TheSportsDB и OpenLigaDB.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = RMatchMuted,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -222,7 +238,7 @@ fun SettingsScreen(
             text = {
                 Text(
                     "Ключ будет удалён из защищённого хранилища, кэш очищен. " +
-                        "Приложение вернётся к экрану ввода ключа."
+                        "Приложение вернётся к выбору бесплатных API или личного ключа."
                 )
             },
             confirmButton = {

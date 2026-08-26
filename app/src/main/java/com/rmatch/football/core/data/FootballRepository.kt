@@ -20,6 +20,7 @@ import com.rmatch.football.core.domain.model.TeamSeasonStats
 import com.rmatch.football.core.network.ApiConstants
 import com.rmatch.football.core.network.FootballApi
 import com.rmatch.football.core.network.free.FreeFootballDataSource
+import com.rmatch.football.core.network.free.OpenLigaDbDataSource
 import com.rmatch.football.core.network.dto.ApiEnvelope
 import com.rmatch.football.core.network.dto.CoachDto
 import com.rmatch.football.core.network.dto.CountryDto
@@ -72,6 +73,7 @@ class FootballRepository(
     private val keyStorage: ApiKeyStorage,
     private val quotaTracker: QuotaTracker,
     private val freeDataSource: FreeFootballDataSource? = null,
+    private val openLigaDbDataSource: OpenLigaDbDataSource? = null,
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
 ) {
 
@@ -155,14 +157,20 @@ class FootballRepository(
             forceRefresh = forceRefresh
         ) { api.countries() }.map { list -> list.mapNotNull { it.toDomainOrNull() } }
 
-    suspend fun leagues(season: Int, forceRefresh: Boolean = false): DataResult<List<LeagueSummary>> =
-        load(
+    suspend fun leagues(season: Int, forceRefresh: Boolean = false): DataResult<List<LeagueSummary>> {
+        val paid = load(
             cacheKey = "leagues:$season",
             ttlMillis = CacheTtl.STATIC_MILLIS,
             serializer = ListSerializer(LeagueDto.serializer()),
             forceRefresh = forceRefresh
         ) { api.leagues(season = season) }
             .map { list -> list.mapNotNull { it.toDomainOrNull() } }
+        if (shouldUseFreeFallback(paid) && openLigaDbDataSource != null) {
+            val free = openLigaDbDataSource.leagues(season)
+            if (free is DataResult.Success && free.loaded.value.isNotEmpty()) return free
+        }
+        return paid
+    }
 
     suspend fun fixturesByDate(
         date: LocalDate,
@@ -177,11 +185,7 @@ class FootballRepository(
             .map { it.toFixtures() }
 
         // Fall back to free source when paid API has no key, quota exceeded, or returned empty
-        val needsFallback = when (paid) {
-            is DataResult.Failure -> paid.error is AppError.NoApiKey ||
-                paid.error is AppError.RateLimited || paid.error is AppError.Unauthorized
-            is DataResult.Success -> paid.loaded.value.isEmpty()
-        }
+        val needsFallback = shouldUseFreeFallback(paid)
         if (needsFallback && freeDataSource != null) {
             val free = freeDataSource.fixturesByDate(date)
             if (free is DataResult.Success && free.loaded.value.isNotEmpty()) return free
@@ -203,8 +207,11 @@ class FootballRepository(
         season: Int,
         next: Int = 10,
         forceRefresh: Boolean = false
-    ): DataResult<List<Fixture>> =
-        load(
+    ): DataResult<List<Fixture>> {
+        if (openLigaDbDataSource?.canHandleLeague(leagueId) == true) {
+            return openLigaDbDataSource.nextFixturesForLeague(leagueId, season, next)
+        }
+        val paid = load(
             cacheKey = "fixtures:league:$leagueId:$season:next:$next",
             ttlMillis = CacheTtl.UPCOMING_MILLIS,
             serializer = ListSerializer(FixtureDto.serializer()),
@@ -218,6 +225,12 @@ class FootballRepository(
                 )
             )
         }.map { it.toFixtures() }
+        if (shouldUseFreeFallback(paid) && openLigaDbDataSource != null) {
+            val free = openLigaDbDataSource.nextFixturesForLeague(leagueId, season, next)
+            if (free is DataResult.Success && free.loaded.value.isNotEmpty()) return free
+        }
+        return paid
+    }
 
     suspend fun lastFixturesForTeam(
         teamId: Int,
@@ -248,6 +261,9 @@ class FootballRepository(
         }.map { it.toFixtures() }
 
     suspend fun fixture(fixtureId: Int, forceRefresh: Boolean = false): DataResult<Fixture?> {
+        if (openLigaDbDataSource?.canHandleFixture(fixtureId) == true) {
+            return openLigaDbDataSource.fixtureById(fixtureId)
+        }
         val paid = load(
             cacheKey = "fixture:$fixtureId",
             ttlMillis = CacheTtl.LIVE_MILLIS,
@@ -262,6 +278,10 @@ class FootballRepository(
                 paid.error is AppError.Unauthorized)
         if (needsFallback && freeDataSource != null) {
             val free = freeDataSource.fixtureById(fixtureId)
+            if (free is DataResult.Success && free.loaded.value != null) return free
+        }
+        if (needsFallback && openLigaDbDataSource != null) {
+            val free = openLigaDbDataSource.fixtureById(fixtureId)
             if (free is DataResult.Success && free.loaded.value != null) return free
         }
         return paid
@@ -301,14 +321,23 @@ class FootballRepository(
         leagueId: Int,
         season: Int,
         forceRefresh: Boolean = false
-    ): DataResult<List<StandingRow>> =
-        load(
+    ): DataResult<List<StandingRow>> {
+        if (openLigaDbDataSource?.canHandleLeague(leagueId) == true) {
+            return openLigaDbDataSource.standings(leagueId, season)
+        }
+        val paid = load(
             cacheKey = "standings:$leagueId:$season",
             ttlMillis = CacheTtl.STANDINGS_MILLIS,
             serializer = ListSerializer(StandingsResponseDto.serializer()),
             forceRefresh = forceRefresh
         ) { api.standings(leagueId, season) }
             .map { it.toStandingRows() }
+        if (shouldUseFreeFallback(paid) && openLigaDbDataSource != null) {
+            val free = openLigaDbDataSource.standings(leagueId, season)
+            if (free is DataResult.Success && free.loaded.value.isNotEmpty()) return free
+        }
+        return paid
+    }
 
     suspend fun teamProfile(teamId: Int, forceRefresh: Boolean = false): DataResult<TeamProfile?> =
         load(
@@ -502,3 +531,10 @@ private fun JsonElement?.errorMessage(): String? = when (this) {
 
 private fun JsonElement.plainText(): String =
     if (this is JsonPrimitive) content else toString()
+
+private fun <T> shouldUseFreeFallback(result: DataResult<List<T>>): Boolean = when (result) {
+    is DataResult.Failure -> result.error is AppError.NoApiKey ||
+        result.error is AppError.RateLimited ||
+        result.error is AppError.Unauthorized
+    is DataResult.Success -> result.loaded.value.isEmpty()
+}

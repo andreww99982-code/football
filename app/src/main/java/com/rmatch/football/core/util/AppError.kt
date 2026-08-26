@@ -21,7 +21,7 @@ object ErrorMessages {
     const val QUOTA_EXCEEDED = "Лимит API исчерпан"
 
     fun of(error: AppError): String = when (error) {
-        AppError.NoApiKey -> "API-ключ не задан. Добавьте ключ в настройках."
+        AppError.NoApiKey -> "Для этого раздела нужен ключ API-Football. Базовые данные доступны через бесплатные источники."
         AppError.Unauthorized -> "Ключ недействителен (401). Проверьте ключ в настройках."
         AppError.RateLimited -> QUOTA_EXCEEDED
         AppError.Offline -> "Нет подключения к сети. Показаны кэшированные данные, если они есть."

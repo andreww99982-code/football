@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +36,12 @@ import com.rmatch.football.ui.theme.RMatchMuted
 fun OnboardingScreen(
     onCompleted: () -> Unit,
     viewModel: OnboardingViewModel = viewModel(
-        factory = SimpleViewModelFactory { OnboardingViewModel(ServiceLocator.repository) }
+        factory = SimpleViewModelFactory {
+            OnboardingViewModel(
+                repository = ServiceLocator.repository,
+                settings = ServiceLocator.settings
+            )
+        }
     )
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -62,30 +68,24 @@ fun OnboardingScreen(
         )
         Spacer(Modifier.height(20.dp))
         Text(
-            text = "Приложение работает только с официальным API-Football (API-Sports). " +
-                "Введите личный API-ключ — он сохраняется в зашифрованном хранилище устройства " +
-                "и не передаётся никуда, кроме ${ApiConstants.PROVIDER_URL}",
+            text = "Выберите источник данных при первом запуске: бесплатные API " +
+                "или личный ключ API-Football.",
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Где взять ключ: зарегистрируйтесь на api-football.com (или на dashboard.api-football.com), " +
-                "откройте раздел с профилем и скопируйте значение API Key. " +
-                "Бесплатный тариф обычно даёт 100 запросов в сутки — приложение кэширует ответы, " +
-                "чтобы экономить лимит.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = RMatchMuted
-        )
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(
-            value = state.key,
-            onValueChange = viewModel::onKeyChanged,
-            label = { Text("API-ключ") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth()
-        )
+        when (state.selectedMode) {
+            null -> ProviderChoice(
+                checking = state.checking,
+                onFreeClick = viewModel::chooseFreeApis,
+                onPaidClick = viewModel::choosePaidKey
+            )
+            StartupMode.PAID_KEY -> PaidKeyForm(state = state, viewModel = viewModel)
+            StartupMode.FREE_APIS -> Text(
+                text = "Запускаем бесплатный режим…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = RMatchMuted
+            )
+        }
         if (state.error != null) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -95,24 +95,6 @@ fun OnboardingScreen(
             )
         }
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = viewModel::submit,
-            enabled = !state.checking,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (state.checking) {
-                CircularProgressIndicator(modifier = Modifier.height(18.dp))
-            } else {
-                Text("Проверить и сохранить")
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = "Ключ проверяется запросом к /status. Приложение не содержит демо-данных: " +
-                "без валидного ключа матчи и статистика не отображаются.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = RMatchMuted
-        )
         ResponsibleGamblingNote()
         Text(
             text = ApiConstants.ATTRIBUTION,
@@ -120,4 +102,95 @@ fun OnboardingScreen(
             color = RMatchMuted
         )
     }
+}
+
+@Composable
+private fun ProviderChoice(
+    checking: Boolean,
+    onFreeClick: () -> Unit,
+    onPaidClick: () -> Unit
+) {
+    Text(
+        text = "Бесплатный режим использует TheSportsDB и OpenLigaDB без ключа. " +
+            "Покрытие и глубина статистики могут быть ниже, чем у API-Football.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = RMatchMuted
+    )
+    Spacer(Modifier.height(16.dp))
+    Button(
+        onClick = onFreeClick,
+        enabled = !checking,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (checking) {
+            CircularProgressIndicator(modifier = Modifier.height(18.dp))
+        } else {
+            Text("Продолжить с бесплатными API")
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    OutlinedButton(
+        onClick = onPaidClick,
+        enabled = !checking,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Использовать ключ API-Football")
+    }
+    Spacer(Modifier.height(16.dp))
+    Text(
+        text = "Платный режим использует ${ApiConstants.PROVIDER_URL}. " +
+            "Ключ хранится только на устройстве в защищённом хранилище.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = RMatchMuted
+    )
+}
+
+@Composable
+private fun PaidKeyForm(
+    state: OnboardingUiState,
+    viewModel: OnboardingViewModel
+) {
+    Text(
+        text = "Зарегистрируйтесь на api-football.com или dashboard.api-football.com, " +
+            "скопируйте API Key и вставьте его ниже.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = RMatchMuted
+    )
+    Spacer(Modifier.height(20.dp))
+    OutlinedTextField(
+        value = state.key,
+        onValueChange = viewModel::onKeyChanged,
+        label = { Text("API-ключ") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(16.dp))
+    Button(
+        onClick = viewModel::submit,
+        enabled = !state.checking,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (state.checking) {
+            CircularProgressIndicator(modifier = Modifier.height(18.dp))
+        } else {
+            Text("Проверить и сохранить")
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    OutlinedButton(
+        onClick = viewModel::backToChoice,
+        enabled = !state.checking,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Назад к выбору")
+    }
+    Spacer(Modifier.height(16.dp))
+    Text(
+        text = "Ключ проверяется запросом к /status. Бесплатный тариф API-Football обычно " +
+            "ограничен по суточной квоте, поэтому приложение кэширует ответы.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = RMatchMuted
+    )
 }

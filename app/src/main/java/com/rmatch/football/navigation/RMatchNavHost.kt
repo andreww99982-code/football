@@ -1,5 +1,7 @@
 package com.rmatch.football.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
@@ -7,16 +9,19 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsSoccer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavType
@@ -36,6 +41,7 @@ import com.rmatch.football.feature.onboarding.OnboardingScreen
 import com.rmatch.football.feature.player.PlayerScreen
 import com.rmatch.football.feature.settings.SettingsScreen
 import com.rmatch.football.feature.team.TeamScreen
+import kotlinx.coroutines.flow.first
 
 private data class BottomTab(
     val route: String,
@@ -54,9 +60,25 @@ private val bottomTabs = listOf(
 @Composable
 fun RMatchRoot() {
     val navController = rememberNavController()
-    var hasKey by remember { mutableStateOf(ServiceLocator.apiKeyStorage.hasKey()) }
+    var canEnterApp by remember { mutableStateOf(ServiceLocator.apiKeyStorage.hasKey()) }
+    var ready by remember { mutableStateOf(false) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    LaunchedEffect(Unit) {
+        canEnterApp = canEnterApp || ServiceLocator.settings.onboardingCompleted.first()
+        ready = true
+    }
+
+    if (!ready) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     Scaffold(
         bottomBar = {
@@ -89,13 +111,13 @@ fun RMatchRoot() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = if (hasKey) Routes.MATCHES else Routes.ONBOARDING,
+            startDestination = if (canEnterApp) Routes.MATCHES else Routes.ONBOARDING,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Routes.ONBOARDING) {
                 OnboardingScreen(
                     onCompleted = {
-                        hasKey = true
+                        canEnterApp = true
                         navController.navigate(Routes.MATCHES) {
                             popUpTo(Routes.ONBOARDING) { inclusive = true }
                         }
@@ -124,7 +146,7 @@ fun RMatchRoot() {
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     onKeyRemoved = {
-                        hasKey = false
+                        canEnterApp = false
                         navController.navigate(Routes.ONBOARDING) {
                             popUpTo(Routes.MATCHES) { inclusive = true }
                         }
